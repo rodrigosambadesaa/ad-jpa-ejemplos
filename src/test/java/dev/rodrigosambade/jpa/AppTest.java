@@ -1,5 +1,55 @@
 package dev.rodrigosambade.jpa;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.Persistence;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-class AppTest {@Test void mappingsPersistBothOriginalExampleDomains(){try(var emf=Persistence.createEntityManagerFactory("examples")){var em=emf.createEntityManager();var tx=em.getTransaction();tx.begin();var department=new Department("I+D");em.persist(department);em.persist(new Employee("Rodrigo",department));var professor=new Professor("Eva");professor.addEmail("eva@example.test");em.persist(professor);tx.commit();assertEquals(1L,em.createQuery("select count(e) from Employee e",Long.class).getSingleResult());assertEquals(1L,em.createQuery("select count(e) from EmailAddress e",Long.class).getSingleResult());em.close();}}}
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class AppTest {
+    @Test
+    void mappingsPersistBothOriginalExampleDomains() {
+        try (EntityManagerFactory entityManagerFactory =
+                     Persistence.createEntityManagerFactory("examples")) {
+            EntityManager entityManager = entityManagerFactory.createEntityManager();
+            try {
+                persistFixtures(entityManager);
+
+                assertEquals(1L, count(entityManager, "Employee"));
+                assertEquals(1L, count(entityManager, "EmailAddress"));
+            } finally {
+                entityManager.close();
+            }
+        }
+    }
+
+    private static void persistFixtures(EntityManager entityManager) {
+        EntityTransaction transaction = entityManager.getTransaction();
+        try {
+            transaction.begin();
+
+            Department department = new Department("I+D");
+            entityManager.persist(department);
+            entityManager.persist(new Employee("Rodrigo", department));
+
+            Professor professor = new Professor("Eva");
+            professor.addEmail("eva@example.test");
+            entityManager.persist(professor);
+
+            transaction.commit();
+        } catch (RuntimeException exception) {
+            if (transaction.isActive()) {
+                transaction.rollback();
+            }
+            throw exception;
+        }
+    }
+
+    private static long count(EntityManager entityManager, String entityName) {
+        return entityManager
+                .createQuery("select count(e) from " + entityName + " e", Long.class)
+                .getSingleResult();
+    }
+}
